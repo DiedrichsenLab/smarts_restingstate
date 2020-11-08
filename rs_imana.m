@@ -3,7 +3,6 @@ function varargout=rs_imana(what,varargin)
 
 
 rootDir               = '/Volumes/porsche/data/smarts';
-rootDir               = '/Volumes/MotorControl/data/smarts';
 behDir              = [rootDir '/bedside/analysis'];
 rsDir               = [rootDir '/fmri/restingstate_imaging'];
 compareDir          = [rootDir '/fmri/restingstate_imaging/preprocess/files'];
