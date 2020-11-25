@@ -1478,7 +1478,7 @@ switch(what)
             case 'interhem' 
                 file = 'nc_interhem.mat';
             case 'all' 
-                file = 'nc_getThemall.mat'; 
+                file = 'nc_getThemall_jorn.mat'; 
         end;
         
 
@@ -1532,7 +1532,7 @@ switch(what)
                 p_val = sum(P.euc_sim>=euc_emp)/numIter; 
                 % Critical value for 5% significance (for gray interval) 
                 crit_val =  prctile(P.euc_sim,95); 
-                fprintf('Against Null: p-value = %2.3f Crtical-val = %2.3f\n', p_val,crit_val); 
+                fprintf('Against Null: p-value = %2.3f Critical-val = %2.3f\n', p_val,crit_val); 
             else                            % Evaluate against Alternative hypothesis
                 p_val = sum(P.euc_sim<=euc_emp)/numIter; 
                 effect = euc_true(k)/sqrt(numConnect)/mean(resms); % univariate effect size  
