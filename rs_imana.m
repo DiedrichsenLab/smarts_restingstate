@@ -391,7 +391,7 @@ switch(what)
         end;
         varargout = {S};
         save(fullfile(ppDir,'rs_preprocess_splithalf.mat'),'-struct','S');
-    case 'PP_removePair'                      % some participants have bad correlation pairs, get rid of them
+    case 'PP_removePair'                      
         D = varargin{1};
         
         idx         = (D.r==0 | D.r==1 | D.r==-1);  % edge cases for bad correlation pairs
@@ -399,7 +399,7 @@ switch(what)
         D.fz_r      = fisherz(D.r);
         
         varargout = {D};
-    case 'PP_studySubset'                     % get controls and patients (subcorticals only, more than 1 measurement session)
+    case 'PP_studySubset'                    
         D    = load(fullfile(ppDir,'rs_preprocess_test.mat'));
         %         D    = load(fullfile(ppDir,'rs_preprocess_splithalf.mat'));
         
@@ -1468,7 +1468,7 @@ switch(what)
         D       = addstruct(D1,D2);
         D = tapply(D,{'subj_name','week','control','type'},{'fz','nanmean'});
         dsave(fullfile(statsDir,[what,'.dat']),D);
-    case 'control_patient_test' % Implements Patient vs. control Null-hypothesis and Equivalence test 
+    case 'control_patient_test'                    % Implements Patient vs. control Null-hypothesis and Equivalence test 
         % Examples: 
         % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 0.37],'connect','lesioned','week',1);
         % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 1.4],'connect','all','week',1);
@@ -1879,7 +1879,7 @@ switch(what)
         D = load(fullfile(ppDir,'nc_getThemall_jorn.mat'));
         
         Dw  = getrow(D,D.week==52);                                          % Dw needs to be changed manually if you want to look at cross-sectional comparison of other weeks
-        %Dw  = getrow(Dw,Dw.FM>40); %when only looking at mild patients
+        %Dw  = getrow(Dw,Dw.FM>40);                                          %when only looking at mild patients
         
         Dc  = getrow(Dw,Dw.control==1);
         Dp  = getrow(Dw,Dw.control==0);
@@ -3340,13 +3340,13 @@ switch(what)
         title ('intra les patients week 1 versus 52')
         keyboard;
         
-    case 'longitudinal_variability_all'                     %bc it is a subset with only people that have all time points different analysis
+    case 'longitudinal_variability_all'                     
         D = load(fullfile(ppDir,'nc_getThemall_jorn.mat'));
         
         Ref     = 1;
         Comp    = [4, 12, 24, 52];
         
-        % get guys that have measurements for all timepoints
+        
         Dp      = getrow(D,D.control==0);
         [x,sn]  = pivottable(Dp.subj_name,Dp.week,Dp.week,'length');
         sn      = sn(~sum(isnan(x),2));
