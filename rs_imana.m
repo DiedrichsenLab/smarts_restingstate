@@ -1612,11 +1612,13 @@ switch(what)
         set(gca,'Box','off'); 
     
     case 'single_connections'
+        % Examples: 
+        % rs_imana('single_connections','week',52,'FM',30);
+        D = load(fullfile(ppDir,'nc_getThemall.mat')); %_jorn
+        vararginoptions(varargin,{'week','FM'});       
         
-        D = load(fullfile(ppDir,'nc_getThemall_jorn.mat'));
-        
-        Dw  = getrow(D,D.week==52);                                          % Dw needs to be changed manually if you want to look at cross-sectional comparison of other weeks
-        %Dw  = getrow(Dw,Dw.FM>40);                                          %when only looking at mild patients
+        Dw  = getrow(D,D.week==week);                                       
+        Dw  = getrow(Dw,Dw.FM>=FM);                                          
         
         Dc  = getrow(Dw,Dw.control==1);
         Dp  = getrow(Dw,Dw.control==0);
