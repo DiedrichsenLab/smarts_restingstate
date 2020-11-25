@@ -1886,7 +1886,8 @@ switch(what)
     case 'acute_variability_all'                   % acute variability comparison patients versus controls
         D = load(fullfile(ppDir,'nc_getThemall_jorn.mat'));
         
-        Dw  = getrow(D,D.week==52);                                          % Dw needs to be changed manually if you want to look at cross-sectional comparison of other weeks
+        w_week = 1;
+        Dw  = getrow(D,D.week==w_week);                                          % Dw needs to be changed manually if you want to look at cross-sectional comparison of other weeks
         
         Dc  = getrow(Dw,Dw.control==1);
         Dp  = getrow(Dw,Dw.control==0);
@@ -2306,7 +2307,7 @@ switch(what)
         D = load(fullfile(ppDir,'nc_getThemall_jorn.mat'));
         
         %D = getrow(D,D.FM >=40);
-        D = getrow(D,D.FM <=40);
+        %D = getrow(D,D.FM <=40);
         
         %%CAVE
         Dp      = getrow(D,D.control==0);      % change for patients
