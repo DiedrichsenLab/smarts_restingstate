@@ -4232,9 +4232,6 @@ switch(what)
         fprintf('Intrahem_nonles patient r = %2.3f (%2.3f - %2.3f)\n',fisherinv(mp),fisherinv(mp-1.96*SEp),fisherinv(mp+1.96*SEp));
         fprintf('Intrahem_nonles control r = %2.3f (%2.3f - %2.3f)\n',fisherinv(mc),fisherinv(mc-1.96*SEc),fisherinv(mc+1.96*SEc));
         
-    case 'equivalence'
-        D = A;
-        
     otherwise
         disp('no such case');
 end;
