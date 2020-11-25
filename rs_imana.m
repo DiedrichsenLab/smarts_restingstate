@@ -17,7 +17,7 @@ roiPark2011         = [rsDir '/RegionOfInterest-Park2011'];
 colours             = num2cell(parula(20),2)';
 sty_2grp_ac         = colours([8,12]);   % e.g. group 1 vs group 2
 sty_2grp_cp         = colours([5,15]);
-sty_multiple        = colours([1,3,6]);
+sty_3grp_pro        = colours([1,3,6]);
 
 regSide             = [ones(1,8), ones(1,8)+1]';
 regType             = [[1:8]'; [1:8]'];
@@ -49,11 +49,14 @@ switch(what)
         idx = ismember(D.subj_name,'CUP_1002') & D.week==24;
         D   = getrow(D,~idx);
         
-        % need to estimate rel. over the two preprocessing techniques
+        %   need to estimate rel. over the two preprocessing techniques
         %   pre:        ICA-based noise removal pipeline
         %   preproc:    regression pipeline
-        type = {'pre_Bold_Rest','preproc_Bold_Rest'};
-        %roi  = [2 10];  % left and right M1                                 % change if you only want M1
+        %   Denoised:   Reviewer requested new denoising pipeline
+        %   type = {'preproc_Bold_Rest','pre_Bold_Rest'};
+        
+        type = {'Denoised_Bold_Rest','preproc_Bold_Rest','pre_Bold_Rest'};
+        %roi  = [2 10];  % left and right M1                                % change if you only want M1
         
         S = [];
         for i=1:length(D.SN)
@@ -91,26 +94,31 @@ switch(what)
             end;
         end;
         varargout = {S};
-        %save(fullfile(analysisDir,'rs_compare_preprocess.mat'),'-struct','S');
-        save(fullfile(analysisDir,'rs_compare_preprocess_whole_pattern.mat'),'-struct','S');
+        %save(fullfile(analysisDir,'rs_compare_preprocess_whole_pattern.mat'),'-struct','S');
+        save(fullfile(analysisDir,'rs_compare_preprocess_whole_3_pattern.mat'),'-struct','S');     
     case 'FIG_compare_prepro'
-        D = load(fullfile(ppDir,'rs_compare_preprocess_whole_pattern.mat'));
-        %
-        s   = style_sheet(sty_2grp_ac,'leg',{'preproc_Bold_Rest', 'pre_Bold_Rest'},'leglocation','northoutside');
+        %D = load(fullfile(ppDir,'rs_compare_preprocess_whole_pattern.mat'));
+        D = load(fullfile(ppDir,'rs_compare_preprocess_whole_3_pattern.mat')); 
+        %s   = style_sheet(sty_2grp_ac,'leg',{'preproc_Bold_Rest', 'pre_Bold_Rest'},'leglocation','northoutside');
+        s   = style_sheet(sty_3grp_pro,'leg',{'Denoised','pre_Bold_Rest','preproc_Bold_Rest'},'leglocation','northoutside');
+        
         h = make_figure;
         %   subplot(3,2,1)
         title('Comparison noise correction')
         lineplot(D.week,D.r,'plotfcn','nanmean','errorfcn','stderr','split',D.ptype,'CAT',s(1).CAT,s(1).PLOT{:});ylabel('correlation index')
         xlabel('weeks')
-        dsave(fullfile(statsDir,'rs_compare_preprocess_whole_pattern_stat.dat'),D);
+        %dsave(fullfile(statsDir,'rs_compare_preprocess_whole_pattern_stat.dat'),D);
+        dsave(fullfile(statsDir,'rs_compare_preprocess_whole_3_pattern_stat.dat'),D); 
         keyboard;
         
         x = pivottable([D.subj_name],[D.ptype],D.r,'nanmean');
-        preproc      = nanmean(x(:,1)); SEp = stderr(x(:,1));
-        pre          = nanmean(x(:,2)); SEc = stderr(x(:,2));
+        P1      = nanmean(x(:,2)); SE1 = stderr(x(:,2));
+        P2      = nanmean(x(:,3)); SE2 = stderr(x(:,3));
+        P3      = nanmean(x(:,1)); SE3 = stderr(x(:,1));
         
-        fprintf('Preproc r = %2.3f (%2.3f - %2.3f)\n',fisherinv(preproc),fisherinv(preproc-1.96*SEp),fisherinv(preproc+1.96*SEp));
-        fprintf('Pre r = %2.3f (%2.3f - %2.3f)\n',fisherinv(pre),fisherinv(pre-1.96*SEc),fisherinv(pre+1.96*SEc));
+       fprintf('Denoised r = %2.3f (%2.3f - %2.3f)\n',fisherinv(P3),fisherinv(P3-1.96*SE1),fisherinv(P3+1.96*SE1));  
+       fprintf('Preproc r = %2.3f (%2.3f - %2.3f)\n',fisherinv(P2),fisherinv(P2-1.96*SE2),fisherinv(P2+1.96*SE2));
+       fprintf('Pre r = %2.3f (%2.3f - %2.3f)\n',fisherinv(P1),fisherinv(P1-1.96*SE3),fisherinv(P1+1.96*SE3)); 
         
     case 'PP_rawTimeSeries'                   % Extraction of fisher-z correlations from different regions of interest from "freesurfer atlas"
         pre = {'preproc_Bold_Rest'};
