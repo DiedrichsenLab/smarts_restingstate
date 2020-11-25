@@ -400,7 +400,7 @@ switch(what)
         
         varargout = {D};
     case 'PP_studySubset'                    
-        D    = load(fullfile(ppDir,'rs_preprocess_test.mat'));
+        D    = load(fullfile(ppDir,'rs_preprocess.mat'));
         %         D    = load(fullfile(ppDir,'rs_preprocess_splithalf.mat'));
         
         % 1. get controls
@@ -926,16 +926,6 @@ switch(what)
             varargout = {S};
             
             
-            %          subplot(2,2,i)
-            %          s   = style_sheet(sty_2grp_cp,'leg',{'patient','control'},'leglocation','northoutside','errorcolor',sty_2grp_cp);
-            %
-            %           barplot(S.weekLabel,S.r,'plotfcn','fisherinv(nanmean(x))','split',S.control,'CAT',s(1).CAT,s(1).PLOT{:});
-            %           set_graphics(gcf,'ylabel',{'correlation'}, 'xlabel',{'weeks'},'fontsize_all',14);
-            %           title(fName(i));
-            %           % [~,~,sn] = unique(S.subj_name);
-            %           % anovaMixed(S.r,sn,'between',S.control,{'grp'});
-            
-            
             subplot(2,2,i)
             s   = style_sheet(sty_2grp_cp,'leg',{'patient','control'},'leglocation','northoutside','errorcolor',sty_2grp_cp);
             
@@ -943,7 +933,7 @@ switch(what)
             set_graphics(gcf,'ylabel',{'correlation'}, 'xlabel',{'weeks'},'fontsize_all',14);
             title(fName(i));
             
-            % test differences between weeLabel
+            % test differences between weekLabel
             SS = getrow(S,S.control==0);
             x = pivottable(SS.subj_name,SS.weekLabel,SS.fz_r,'nanmean');
             ttest(x(:,1),x(:,2),2,'paired');
