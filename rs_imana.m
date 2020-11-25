@@ -1,5 +1,5 @@
 function varargout=rs_imana(what,varargin)
-% MB - analysis script for the SMARTS resting state data
+% MB - analysis script for the SMARTS resting-state data
 
 
 rootDir               = '/Volumes/porsche/data/smarts';
