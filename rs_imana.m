@@ -1464,11 +1464,12 @@ switch(what)
         % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 0.37],'connect','lesioned','week',1);
         % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 1.4],'connect','all','week',1);
          
-        week = 1;
-        numIter = 1000; 
+        week     = 1;
+        numIter  = 1000; 
+        subgroup = 0;
         euc_true = [0 1.4]; % Which true Eucledian distance to test
-        connect = 'lesioned'; 
-        vararginoptions(varargin,{'week','numIter','euc_true','connect'});  
+        connect  = 'lesioned'; 
+        vararginoptions(varargin,{'week','numIter','euc_true','connect','subgroup'});
 
         % determine the correct file 
         switch(connect) 
@@ -1484,7 +1485,27 @@ switch(what)
         
 
         D = load(fullfile(ppDir,file)); % _joern
-        D  = getrow(D,D.week==week);                                     
+        
+            
+        D  = getrow(D,D.week==week); 
+        
+                if      subgroup==1
+                 mild_moderate      = {'CU_2310','CU_2925','JHU_2531','JHU_2789','JHU_3176','UZ_2450',...
+                                       'UZ_2654','UZ_3241','UZ_3243','UZ_3247','UZ_3248','CUP_1002',...
+                                       'JHP_1001','JHP_1002','JHP_1004','UZP_1001','UZP_1002','UZP_1004',...
+                                       'UZP_1005','UZP_1006','UZP_1007','UZP_1008'};
+                
+                 D = getrow(D,ismember(D.subj_name,mild_moderate));
+                elseif  subgroup==2 
+                 severe             = {'CU_2663','JHU_2395','UZ_2365','UZ_2565','UZ_2652','UZ_3239',...
+                                       'UZ_3240','UZ_3246','CUP_1002','JHP_1001','JHP_1002','JHP_1004',...
+                                       'UZP_1001','UZP_1002','UZP_1004','UZP_1005','UZP_1006','UZP_1007',...
+                                       'UZP_1008'};
+                                   
+                 D = getrow(D,ismember(D.subj_name,severe));
+                end
+                
+                
         D.res = bsxfun(@minus,D.M,mean(D.M)); % Get the residuals
         numConnect = size(D.M,2);  % Number of connections 
         
@@ -1617,12 +1638,13 @@ switch(what)
         % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 0.37],'connect','lesioned','week',1,'group',0);
         % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 1.4],'connect','all','week',1);
          
-        week = 4;
-        control = 1;
-        numIter = 10000; 
+        week     = 4;
+        control  = 1;
+        numIter  = 10000; 
         euc_true = [0 1.4]; % Which true Eucledian distance to test
-        connect = 'lesioned'; 
-        vararginoptions(varargin,{'week','numIter','euc_true','connect','control'});  
+        connect  = 'lesioned'; 
+        subgroup = 1;
+        vararginoptions(varargin,{'week','numIter','euc_true','connect','control','subgroup'});  
 
         % determine the correct file 
         switch(connect) 
@@ -1638,6 +1660,23 @@ switch(what)
         
 
         D = load(fullfile(ppDir,file)); % _joern
+        
+        if      subgroup==1
+                 mild_moderate      = {'CU_2310','CU_2925','JHU_2531','JHU_2789','JHU_3176','UZ_2450',...
+                                       'UZ_2654','UZ_3241','UZ_3243','UZ_3247','UZ_3248','CUP_1002',...
+                                       'JHP_1001','JHP_1002','JHP_1004','UZP_1001','UZP_1002','UZP_1004',...
+                                       'UZP_1005','UZP_1006','UZP_1007','UZP_1008'};
+                
+                 D = getrow(D,ismember(D.subj_name,mild_moderate));
+                elseif  subgroup==2 
+                 severe             = {'CU_2663','JHU_2395','UZ_2365','UZ_2565','UZ_2652','UZ_3239',...
+                                       'UZ_3240','UZ_3246','CUP_1002','JHP_1001','JHP_1002','JHP_1004',...
+                                       'UZP_1001','UZP_1002','UZP_1004','UZP_1005','UZP_1006','UZP_1007',...
+                                       'UZP_1008'};
+                                   
+                 D = getrow(D,ismember(D.subj_name,severe));
+        end
+        
         D  = getrow(D,D.control==control);                                     
         D.res = bsxfun(@minus,D.M,mean(D.M)); % Get the residuals
         numConnect = size(D.M,2);  % Number of connections 
