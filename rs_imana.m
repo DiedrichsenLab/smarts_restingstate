@@ -1458,6 +1458,7 @@ switch(what)
         D       = addstruct(D1,D2);
         D = tapply(D,{'subj_name','week','control','type'},{'fz','nanmean'});
         dsave(fullfile(statsDir,[what,'.dat']),D);
+        
     case 'control_patient_test'                    % Implements Patient vs. control Null-hypothesis and Equivalence test 
         % Examples: 
         % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 0.37],'connect','lesioned','week',1);
@@ -1611,6 +1612,169 @@ switch(what)
         drawline([0.01 0.05 0.8],'dir','horz'); 
         set(gca,'Box','off'); 
     
+    case 'week_longitudinal_test'
+    % Examples: 
+        % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 0.37],'connect','lesioned','week',1,'group',0);
+        % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 1.4],'connect','all','week',1);
+         
+        week = 4;
+        control = 1;
+        numIter = 10000; 
+        euc_true = [0 1.4]; % Which true Eucledian distance to test
+        connect = 'lesioned'; 
+        vararginoptions(varargin,{'week','numIter','euc_true','connect','control'});  
+
+        % determine the correct file 
+        switch(connect) 
+            case 'lesioned'
+                file = 'nc_intrahem_lesioned.mat';
+            case 'nonlesioned' 
+                file = 'nc_intrahem_nonlesioned.mat';
+            case 'interhem' 
+                file = 'nc_interhem.mat';
+            case 'all' 
+                file = 'nc_getThemall_jorn.mat'; 
+        end;
+        
+
+        D = load(fullfile(ppDir,file)); % _joern
+        D  = getrow(D,D.control==control);                                     
+        D.res = bsxfun(@minus,D.M,mean(D.M)); % Get the residuals
+        numConnect = size(D.M,2);  % Number of connections 
+        
+        if control==1
+                %get correct weeks
+                Dw      = getrow(D,D.week==1);        % get acute stage
+                Dtest   = getrow(D,D.week==week);        % get week that should be compared
+
+
+                numC = sum(Dw.control);
+                numP = sum(Dtest.control);
+                N = numC + numP;
+
+                % Calculate the real difference 
+                diff = sum(Dw.res(Dw.control,:))/numC-sum(Dtest.res(Dtest.control,:))/numP;
+                euc_emp = sqrt(sum(diff.^2));
+
+                % Estimate a approximate effect size for indepdent connections
+                res(Dw.control,:) = bsxfun(@minus,Dw.res(Dw.control,:),mean(Dw.res(Dw.control,:))); % Get the residuals
+                res(Dtest.control,:) = bsxfun(@minus,Dtest.res(Dtest.control,:),mean(Dtest.res(Dtest.control,:))); % Get the residuals
+                resms = std(res); 
+                effect_size_emp = euc_emp/sqrt(numConnect)/mean(resms); % univariate effect size  
+
+                PP=[];
+                for k=1:length(euc_true)
+                    P=[];
+                    for j=1:numIter
+                        % Make a new assignment of controls and patients
+                        contT = false(N,1);
+                        a=sample_wor([1:N],numC);
+                        contT(a)=true;
+
+                        % Add a real effect to the patients
+                        realDiff = normrnd(0,1,1,numConnect);
+                        realDiff=realDiff/sqrt(sum(realDiff.^2))*euc_true(k);
+                        Data = D.res;
+                        Data(~contT,:) = bsxfun(@plus,Data(~contT,:),realDiff);
+
+                        % Now determine the empirically measured distance under this
+                        % true effect (larger than true effect)
+                        diff = sum(Data(contT,:))/numC-sum(Data(~contT,:))/numP;
+                        P.euc_sim(j,1) = sqrt(sum(diff.^2));
+
+                        % evaluate and record the results
+                        P.euc_true(j,1) = euc_true(k);
+                    end;
+                    PP=addstruct(PP,P); 
+                    EUC{k}=P.euc_sim; 
+                    if (euc_true(k)==0)             % Evaluate against Null hypothesis
+                        fprintf('%s Week: %d\n',connect,week); 
+                        fprintf('delta_pattern = %2.3f; Empiricial univariate effect = %2.3f\n', euc_emp,effect_size_emp); 
+                        p_val = sum(P.euc_sim>=euc_emp)/numIter; 
+                        % Critical value for 5% significance (for gray interval) 
+                        crit_val =  prctile(P.euc_sim,95); 
+                        fprintf('Against Null: p-value = %2.3f Critical-val = %2.3f\n', p_val,crit_val); 
+                    else                            % Evaluate against Alternative hypothesis
+                        p_val = sum(P.euc_sim<=euc_emp)/numIter; 
+                        effect = euc_true(k)/sqrt(numConnect)/mean(resms); % univariate effect size  
+                        fprintf('Against Alternative: delta: %2.3f, univariate effect: %2.3f, p-value= %2.3f\n',euc_true(k),effect,p_val);
+                    end; 
+                end;
+                nhist(EUC,'noerror','smooth','color','sequential','samebins');
+                drawline(euc_emp,'dir','vert'); 
+                drawline(euc_true(1),'dir','vert','color','b'); 
+                drawline(euc_true(2),'dir','vert','color','r'); 
+                set_graphics(gcf,'ylabel',{'frequency'}, 'xlabel',{'Euclidian distance'},'fontsize_all',14);
+                set(gcf,'PaperPosition',[2 2 6 4]); 
+                wysiwyg; 
+                varargout={PP}; 
+        else
+                        %get correct weeks
+                Dw      = getrow(D,D.week==1);        % get acute stage
+                Dtest   = getrow(D,D.week==week);        % get week that should be compared
+
+
+                numC = sum(~Dw.control);
+                numP = sum(~Dtest.control);
+                N = numC + numP;
+
+                % Calculate the real difference 
+                diff = sum(Dw.res(~Dw.control,:))/numC-sum(Dtest.res(~Dtest.control,:))/numP;
+                euc_emp = sqrt(sum(diff.^2));
+
+                % Estimate a approximate effect size for indepdent connections
+                res(~Dw.control,:) = bsxfun(@minus,Dw.res(~Dw.control,:),mean(Dw.res(~Dw.control,:))); % Get the residuals
+                res(~Dtest.control,:) = bsxfun(@minus,Dtest.res(~Dtest.control,:),mean(Dtest.res(~Dtest.control,:))); % Get the residuals
+                resms = std(res); 
+                effect_size_emp = euc_emp/sqrt(numConnect)/mean(resms); % univariate effect size  
+
+                PP=[];
+                for k=1:length(euc_true)
+                    P=[];
+                    for j=1:numIter
+                        % Make a new assignment of controls and patients
+                        contT = false(N,1);
+                        a=sample_wor([1:N],numC);
+                        contT(a)=true;
+
+                        % Add a real effect to the patients
+                        realDiff = normrnd(0,1,1,numConnect);
+                        realDiff=realDiff/sqrt(sum(realDiff.^2))*euc_true(k);
+                        Data = D.res;
+                        Data(~contT,:) = bsxfun(@plus,Data(~contT,:),realDiff);
+
+                        % Now determine the empirically measured distance under this
+                        % true effect (larger than true effect)
+                        diff = sum(Data(contT,:))/numC-sum(Data(~contT,:))/numP;
+                        P.euc_sim(j,1) = sqrt(sum(diff.^2));
+
+                        % evaluate and record the results
+                        P.euc_true(j,1) = euc_true(k);
+                    end;
+                    PP=addstruct(PP,P); 
+                    EUC{k}=P.euc_sim; 
+                    if (euc_true(k)==0)             % Evaluate against Null hypothesis
+                        fprintf('%s Week: %d\n',connect,week); 
+                        fprintf('delta_pattern = %2.3f; Empiricial univariate effect = %2.3f\n', euc_emp,effect_size_emp); 
+                        p_val = sum(P.euc_sim>=euc_emp)/numIter; 
+                        % Critical value for 5% significance (for gray interval) 
+                        crit_val =  prctile(P.euc_sim,95); 
+                        fprintf('Against Null: p-value = %2.3f Critical-val = %2.3f\n', p_val,crit_val); 
+                    else                            % Evaluate against Alternative hypothesis
+                        p_val = sum(P.euc_sim<=euc_emp)/numIter; 
+                        effect = euc_true(k)/sqrt(numConnect)/mean(resms); % univariate effect size  
+                        fprintf('Against Alternative: delta: %2.3f, univariate effect: %2.3f, p-value= %2.3f\n',euc_true(k),effect,p_val);
+                    end; 
+                end;
+                nhist(EUC,'noerror','smooth','color','sequential','samebins');
+                drawline(euc_emp,'dir','vert'); 
+                drawline(euc_true(1),'dir','vert','color','b'); 
+                drawline(euc_true(2),'dir','vert','color','r'); 
+                set_graphics(gcf,'ylabel',{'frequency'}, 'xlabel',{'Euclidian distance'},'fontsize_all',14);
+                set(gcf,'PaperPosition',[2 2 6 4]); 
+                wysiwyg;     
+        end
+        
     case 'single_connections'
         % Examples: 
         % rs_imana('single_connections','week',52,'FM',30);
