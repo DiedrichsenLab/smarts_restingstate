@@ -4232,10 +4232,11 @@ switch(what)
         mc = nanmean(z); SEc = stderr(z);
         fprintf('Intrahem_nonles patient r = %2.3f (%2.3f - %2.3f)\n',fisherinv(mp),fisherinv(mp-1.96*SEp),fisherinv(mp+1.96*SEp));
         fprintf('Intrahem_nonles control r = %2.3f (%2.3f - %2.3f)\n',fisherinv(mc),fisherinv(mc-1.96*SEc),fisherinv(mc+1.96*SEc));
-        
-    case 'equivalence'
-        D = A;
-        
+    case 'ROI_volumes'
+        load (fullfile(roiDir,'UZ_2365_regions_all.mat')); 
+        for i=[1 2 3 4 5]
+            fprintf('Regio %s has %d voxels\n',R{i}.name,size(R{i}.data,1));
+        end;
     otherwise
         disp('no such case');
 end;
