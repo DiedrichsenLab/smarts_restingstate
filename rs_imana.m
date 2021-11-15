@@ -4,6 +4,7 @@ function varargout=rs_imana(what,varargin)
 
 rootDir               = '/Volumes/porsche/data/smarts';
 rootDir               = '/Volumes/MotorControl/data/smarts';
+rootDir               = '/Volumes/diedrichsen_data$/data/smarts';
 behDir              = [rootDir '/bedside/analysis'];
 rsDir               = [rootDir '/fmri/restingstate_imaging'];
 compareDir          = [rootDir '/fmri/restingstate_imaging/preprocess/files'];
@@ -29,6 +30,10 @@ regLabel = {'S1-S1','S1-M1','S1-PMd','S1-PMv','S1-SMA',...
     'PMv-S1','PMv-M1','PMv-PMd','PMv-PMv','PMv-SMA',...
     'PMd-S1','PMd-M1','PMd-PMd','PMd-PMv','PMd-SMA'};
 
+lesionType = {'none','cortical','subcortical','mixed'}; %1,2,3,4
+HemN = {'LeftHem','RightHem'};
+hem = {'lh','rh'}; 
+        
 switch(what)
     case 'unzip'
         cd(ppDir);
@@ -384,6 +389,195 @@ switch(what)
         end;
         varargout = {S};
         save(fullfile(ppDir,'rs_preprocess_splithalf.mat'),'-struct','S');
+    case 'PP_voxelwise_define_region' 
+        % 0. check which subjects have the raw and preprocessed files
+        D = rs_preprocess_ana('check_data_exists');
+        D = getrow(D,D.existPPImg & D.existRawImg);
+        [names,ia,ib] = unique(D.subj_name); 
+        
+        % Define the area of the damaged hemisphere that we will consider
+        atlasSurfDir = [rootDir '/fmri/surface_caret/fsaverage_sym/LeftHem'];
+        FL = caret_load(fullfile(atlasSurfDir,'lh.FLAT.coord'));
+        nodes = find(FL.data(:,1)>-25 & FL.data(:,1)<18 & FL.data(:,2)<42 & FL.data(:,2)>-27);
+        
+        for i = ia' 
+            fprintf('defining region for %s \n',D.subj_name{i}); 
+            regFile = fullfile(roiDir,sprintf('%s_regions_all.mat',D.subj_name{i}));
+            R   = load(fullfile(roiDir,sprintf('%s_regions_all.mat',D.subj_name{i}))); % load subject region definition
+            s = regexp(R.R{1}.image, '/', 'split');
+            mask = fullfile(rootDir,'fmri','anatomicals',D.subj_name{i},s{end-1},s{end});
+                
+            % Define the healthy and lesioned hemisphere
+            sideL = D.lesionside(i);
+            if (sideL == 0)
+                sideL = 1;
+            end;
+            sideN = 3-sideL;
+                
+            % Make the region structure
+            N.type = 'surf_nodes'; 
+            N.location = nodes; 
+            N.white = fullfile(rootDir,'fmri','surface_caret',['x' D.subj_name{i}],HemN{sideL},[hem{sideL} '.WHITE.coord']);
+            N.pial = fullfile(rootDir,'fmri','surface_caret',['x' D.subj_name{i}],HemN{sideL},[hem{sideL} '.PIAL.coord']);
+            N.image = mask; 
+            N.name = [D.subj_name{i} 'voxelwise']; 
+            N.linedef = [5 0 1];
+            
+            % Caluculate and save 
+            N = region_calcregions(N); 
+            name = fullfile(roiDir,sprintf('%s_regions_voxelwise.mat',D.subj_name{i})); % load subject region definition
+            save(name,'-struct','N'); 
+        end; 
+            
+    case 'PP_voxelWiseCorrelation'                      % Extraction of fisher-z correlations from different regions of interest from "freesurfer atlas"
+        pre = {'preproc_Bold_Rest'};
+
+        % 0. check which subjects have the raw and preprocessed files
+        D = rs_preprocess_ana('check_data_exists');
+        D = getrow(D,D.existPPImg & D.existRawImg);
+        
+        %         D   = dload(fullfile(rsDir,'patient_list.txt'));
+        B   = load(fullfile(behDir,'ens_alldat_mvc.mat'));
+        SS  = dload(fullfile(rootDir,'bedside','data_clean','subject_list.txt'));
+        L   = dload(fullfile(rootDir,'DTI','lesion_analysis','lesion.dat'));
+        
+        SS.subj_name    = strcat(SS.Centre,'_',num2str(SS.ID));
+        L.subj_name     = strcat(L.Centre,'_',num2str(L.ID));
+        
+        % Define the area of the damaged hemisphere that we will consider
+        atlasSurfDir = [rootDir '/fmri/surface_caret/fsaverage_sym/LeftHem'];
+        FL = caret_load(fullfile(atlasSurfDir,'lh.FLAT.coord'));
+        nodes = FL.data(:,1)>-25 & FL.data(:,1)<18 & FL.data(:,2)<42 & FL.data(:,2)>-27;
+        
+        S = [];
+        for i=1:length(D.SN)
+            fname   = strcat(pre{1},'_',D.Centre{i},'_',num2str(D.ID(i)),'_',D.Week{i},'.nii');
+            sn      = strcat(D.Centre{i},'_',num2str(D.ID(i)));
+            fprintf('%s\n',fname);
+            
+            regFile = fullfile(roiDir,sprintf('%s_regions_all.mat',sn));
+            if ~exist(regFile)
+                fprintf('No region definition for this subject...\n');
+            else
+                R   = load(fullfile(roiDir,sprintf('%s_regions_all.mat',sn))); % load subject region definition
+                N   = load(fullfile(roiDir,sprintf('%s_regions_voxelwise.mat',sn))); % load subject region definition
+                
+                % Define the healthy and lesioned hemisphere
+                sideL = D.lesionside(i);
+                if (sideL == 0)
+                    sideL = 1;
+                end;
+                sideN = 3-sideL;
+                regions = {R.R{2+(sideN-1)*8},N};
+                % Extract data 
+                v   = spm_vol(fullfile(compareDir,fname));       % load volumes from rs data
+                ts  = region_getdata(v,regions);                % get time series for all ROIs
+                Bi  = getrow(B,strcmp(B.subj_name,sn) & B.week==D.week(i));
+                SSi = getrow(SS,strcmp(SS.subj_name,sn));   % get gray matter damage from subject_list file
+                Li  = getrow(L,strcmp(L.subj_name,sn));     % get cst damage from DTI
+                
+                clear Si
+                Si.subj_name    = {sn};
+                Si.week         = D.week(i);
+                Si.lesionType   = find(strcmp(D.LesionLocation(i),lesionType));
+                if isempty(find(strcmp(D.LesionLocation(i),lesionType)))
+                    Si.lesionType = nan;
+                end;
+                Si.lesionSide   = D.lesionside(i);                          %lesionside = 1 = left
+                Si.control      = ~isempty(strfind(sn,'P'));
+                if ~isempty(Bi.subj_name)
+                    switch(Si.control)
+                        case 0
+                            Bj = getrow(Bi,Bi.handLabel==4);    % paretic hand
+                        case 1
+                            Bj = getrow(Bi,Bi.handLabel==1);    % non-dom hand
+                    end;
+                    Si.ensOverall   = -Bj.ensOverall;
+                    Si.mmOverall    = -Bj.mmOverall;
+                    Si.mvcNorm      = Bj.mvcNorm;
+                    Si.mvc          = Bj.mvc;
+                    Si.FM           = Bj.FM;
+                    Si.ARAT         = Bj.ARAT;
+                    Si.age          = Bj.age;
+                    Si.handedness   = Bj.handedness;
+                    Si.lesion_PrCG  = SSi.lesion_PrCG(1);
+                    Si.lesion_PrCG_W= SSi.lesion_PrCG_W(1);
+                else
+                    Si.ensOverall   = nan;
+                    Si.mmOverall    = nan;
+                    Si.mvcNorm      = nan;
+                    Si.mvc          = nan;
+                    Si.FM           = nan;
+                    Si.ARAT         = nan;
+                    Si.age          = nan;
+                    Si.handedness   = nan;
+                    Si.lesion_PrCG  = nan;
+                    Si.lesion_PrCG_W= nan;
+                end;
+                
+                ref = mean(ts{1}'); 
+                % Voxel-wises correlation 
+                zr = fisherz(corr(ref',ts{2}));
+                ZR(N.linvoxidxs)=zr; % Expand out to original volume 
+                I = N.location2linvoxindxs; 
+                i = find(isnan(N.location2linvoxindxs)); 
+                I(i)=1; 
+                MAP_ZR=ZR(I); 
+                MAP_ZR(i)=nan; 
+                Si.zr = nanmean(MAP_ZR'); 
+                S           = addstruct(S,Si);
+            end;
+        end;
+        save(fullfile(ppDir,'rs_preprocess_voxelwise.mat'),'-struct','S');
+        varargout = {S};
+        
+    case 'PP_voxelwise_analysis' % plotting and statistical analysis of the correlation maps 
+        atlasSurfDir = [rootDir '/fmri/surface_caret/fsaverage_sym/LeftHem'];
+        Coord = (fullfile(atlasSurfDir,'lh.FLAT.coord'));
+        Topo = (fullfile(atlasSurfDir,'lh.CUT.topo'));
+        Shape = caret_load(fullfile(atlasSurfDir,'lh.surface_shape'));
+        Paint = caret_load(fullfile(atlasSurfDir,'ROI.paint')); 
+        B = caret_load('CS.border');
+        N   = load(fullfile(roiDir,sprintf('%s_regions_voxelwise.mat','UZP_1005'))); % load subject region definition
+        D=load(fullfile(ppDir,'rs_preprocess_voxelwise.mat'));
+        figure(1); 
+        set(gcf,'PaperPosition',[2 2 12 8]); 
+        subplot(3,5,1); 
+        [M,d,p]=caret_plotflatmap('coord',Coord,'topo',Topo,'data',Shape.data(:,2),'xlims',[-25 18],'ylims',[-27 42]);
+        set(gca,'XTick',[],'YTick',[]); 
+        axis equal 
+        title('sulcal depth'); 
+        subplot(3,5,2); 
+        caret_plotflatmap('topo',Topo,'M',M,'data',Paint.data(:,1),'xlims',[-25 18],'ylims',[-27 42]);
+        set(gca,'XTick',[],'YTick',[]); 
+        axis equal 
+        title('ROI'); 
+        Data = zeros(163842,size(D.zr,1)); 
+        Data(N.location,:) = D.zr'; 
+        
+        weeks = [1,4,12,24,52]; 
+        for i =1:5 
+            subplot(3,5,5+i); 
+            if (i==1) 
+                ylabel('Controls'); 
+            end;
+            title(sprintf('Week %d', weeks(i))); 
+                
+            caret_plotflatmap('topo',Topo,'M',M,'data',nanmean(Data(:,D.control & D.week==weeks(i)),2),'cscale',[-0.1 0.5],'border',B.Border); 
+            set(gca,'XTick',[],'YTick',[]); 
+            axis equal 
+            subplot(3,5,10+i); 
+            if (i==1) 
+                ylabel('patients'); 
+            end; 
+            caret_plotflatmap('topo',Topo,'M',M,'data',nanmean(Data(:,~D.control & D.week==weeks(i)),2),'cscale',[-0.1 0.5],'border',B.Border); 
+            set(gca,'XTick',[],'YTick',[]); 
+            axis equal 
+        end 
+    case 'PP_plotmap'
+        M=varargin{1};
+        Topo = varargin{2}; 
+        
     case 'PP_removePair'                      % some participants have bad correlation pairs, get rid of them
         D = varargin{1};
         
@@ -1461,49 +1655,49 @@ switch(what)
         D       = addstruct(D1,D2);
         D = tapply(D,{'subj_name','week','control','type'},{'fz','nanmean'});
         dsave(fullfile(statsDir,[what,'.dat']),D);
-    case 'control_patient_test' % Implements Patient vs. control Null-hypothesis and Equivalence test 
-        % Examples: 
+    case 'control_patient_test' % Implements Patient vs. control Null-hypothesis and Equivalence test
+        % Examples:
         % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 0.37],'connect','lesioned','week',1);
         % rs_imana('control_patient_test','numIter',10000,'euc_true',[0 1.4],'connect','all','week',1);
-         
+        
         week = 1;
-        numIter = 1000; 
+        numIter = 1000;
         euc_true = [0 1.4]; % Which true Eucledian distance to test
-        connect = 'lesioned'; 
-        vararginoptions(varargin,{'week','numIter','euc_true','connect'});  
-
-        % determine the correct file 
-        switch(connect) 
+        connect = 'lesioned';
+        vararginoptions(varargin,{'week','numIter','euc_true','connect'});
+        
+        % determine the correct file
+        switch(connect)
             case 'lesioned'
                 file = 'nc_intrahem_lesioned.mat';
-            case 'nonlesioned' 
+            case 'nonlesioned'
                 file = 'nc_intrahem_nonlesioned.mat';
-            case 'interhem' 
+            case 'interhem'
                 file = 'nc_interhem.mat';
-            case 'all' 
-                file = 'nc_getThemall.mat'; 
+            case 'all'
+                file = 'nc_getThemall.mat';
         end;
         
-
+        
         D = load(fullfile(ppDir,file)); % _joern
-        D  = getrow(D,D.week==week);                                     
+        D  = getrow(D,D.week==week);
         D.res = bsxfun(@minus,D.M,mean(D.M)); % Get the residuals
-        numConnect = size(D.M,2);  % Number of connections 
+        numConnect = size(D.M,2);  % Number of connections
         
         numC = sum(D.control);
         numP = sum(~D.control);
         N = numC + numP;
-
-        % Calculate the real difference 
+        
+        % Calculate the real difference
         diff = sum(D.res(D.control,:))/numC-sum(D.res(~D.control,:))/numP;
         euc_emp = sqrt(sum(diff.^2));
         
         % Estimate a approximate effect size for indepdent connections
         res(D.control,:) = bsxfun(@minus,D.res(D.control,:),mean(D.res(D.control,:))); % Get the residuals
         res(~D.control,:) = bsxfun(@minus,D.res(~D.control,:),mean(D.res(~D.control,:))); % Get the residuals
-        resms = std(res); 
-        effect_size_emp = euc_emp/sqrt(numConnect)/mean(resms); % univariate effect size  
-                
+        resms = std(res);
+        effect_size_emp = euc_emp/sqrt(numConnect)/mean(resms); % univariate effect size
+        
         PP=[];
         for k=1:length(euc_true)
             P=[];
@@ -1527,29 +1721,29 @@ switch(what)
                 % evalauate and record the results
                 P.euc_true(j,1) = euc_true(k);
             end;
-            PP=addstruct(PP,P); 
-            EUC{k}=P.euc_sim; 
+            PP=addstruct(PP,P);
+            EUC{k}=P.euc_sim;
             if (euc_true(k)==0)             % Evaluate against Null hypothesis
-                fprintf('%s Week: %d\n',connect,week); 
-                fprintf('delta_pattern = %2.3f; Empiricial univariate effect = %2.3f\n', euc_emp,effect_size_emp); 
-                p_val = sum(P.euc_sim>=euc_emp)/numIter; 
-                % Critical value for 5% significance (for gray interval) 
-                crit_val =  prctile(P.euc_sim,95); 
-                fprintf('Against Null: p-value = %2.3f Crtical-val = %2.3f\n', p_val,crit_val); 
+                fprintf('%s Week: %d\n',connect,week);
+                fprintf('delta_pattern = %2.3f; Empiricial univariate effect = %2.3f\n', euc_emp,effect_size_emp);
+                p_val = sum(P.euc_sim>=euc_emp)/numIter;
+                % Critical value for 5% significance (for gray interval)
+                crit_val =  prctile(P.euc_sim,95);
+                fprintf('Against Null: p-value = %2.3f Crtical-val = %2.3f\n', p_val,crit_val);
             else                            % Evaluate against Alternative hypothesis
-                p_val = sum(P.euc_sim<=euc_emp)/numIter; 
-                effect = euc_true(k)/sqrt(numConnect)/mean(resms); % univariate effect size  
+                p_val = sum(P.euc_sim<=euc_emp)/numIter;
+                effect = euc_true(k)/sqrt(numConnect)/mean(resms); % univariate effect size
                 fprintf('Against Alternative: delta: %2.3f, univariate effect: %2.3f, p-value= %2.3f\n',euc_true(k),effect,p_val);
-            end; 
+            end;
         end;
         nhist(EUC,'noerror','smooth','color','sequential','samebins');
-        drawline(euc_emp,'dir','vert'); 
-        drawline(euc_true(1),'dir','vert','color','b'); 
-        drawline(euc_true(2),'dir','vert','color','r'); 
+        drawline(euc_emp,'dir','vert');
+        drawline(euc_true(1),'dir','vert','color','b');
+        drawline(euc_true(2),'dir','vert','color','r');
         set_graphics(gcf,'ylabel',{'frequency'}, 'xlabel',{'Euclidian distance'},'fontsize_all',14);
-        set(gcf,'PaperPosition',[2 2 6 4]); 
-        wysiwyg; 
-        varargout={PP}; 
+        set(gcf,'PaperPosition',[2 2 6 4]);
+        wysiwyg;
+        varargout={PP};
     case 'acute_control_patient_effectsize'
         numRand = 1000; % Randomization for permutation test
         numIter = 2000;   % Number iterations for each effect size
@@ -1597,22 +1791,22 @@ switch(what)
                 P.euc_real(j,1) = euc_real;
                 P.euc_true(j,1) = euc_true(k);
             end;
-            PP.euc_true(k,1) = euc_true(k); 
-            PP.euc_mean(k,1) = mean(P.euc_real); 
-            PP.euc_std(k,1) = std(P.euc_real); 
-            PP.sig5(k,1) = sum(P.p<0.05)/numIter; 
-            PP.sig1(k,1) = sum(P.p<0.01)/numIter; 
+            PP.euc_true(k,1) = euc_true(k);
+            PP.euc_mean(k,1) = mean(P.euc_real);
+            PP.euc_std(k,1) = std(P.euc_real);
+            PP.sig5(k,1) = sum(P.p<0.05)/numIter;
+            PP.sig1(k,1) = sum(P.p<0.01)/numIter;
         end;
-        varargout={PP}; 
+        varargout={PP};
     case 'acute_control_patient_effectsize_plot'
-        D=varargin{1}; 
+        D=varargin{1};
         plot(D.euc_true,D.sig5,'r','LineWidth',2);
-        hold on; 
+        hold on;
         plot(D.euc_true,D.sig1,'b','LineWidth',2);
-        xlabel('TrueDistance') 
-        ylabel('Proportion positive'); 
-        drawline([0.01 0.05 0.8],'dir','horz'); 
-        set(gca,'Box','off'); 
+        xlabel('TrueDistance')
+        ylabel('Proportion positive');
+        drawline([0.01 0.05 0.8],'dir','horz');
+        set(gca,'Box','off');
     case 'acute_control_patient_all_connections'   % acute crossectional comparison patients versus controls
         
         D = load(fullfile(ppDir,'nc_getThemall.mat')); % _joern
@@ -4233,7 +4427,7 @@ switch(what)
         fprintf('Intrahem_nonles patient r = %2.3f (%2.3f - %2.3f)\n',fisherinv(mp),fisherinv(mp-1.96*SEp),fisherinv(mp+1.96*SEp));
         fprintf('Intrahem_nonles control r = %2.3f (%2.3f - %2.3f)\n',fisherinv(mc),fisherinv(mc-1.96*SEc),fisherinv(mc+1.96*SEc));
     case 'ROI_volumes'
-        load (fullfile(roiDir,'UZ_2365_regions_all.mat')); 
+        load (fullfile(roiDir,'UZ_2365_regions_all.mat'));
         for i=[1 2 3 4 5]
             fprintf('Regio %s has %d voxels\n',R{i}.name,size(R{i}.data,1));
         end;

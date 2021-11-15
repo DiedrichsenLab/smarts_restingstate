@@ -4,8 +4,10 @@ function varargout = rs_preprocess_ana(what,varargin)
 % Directories
 
 rootDir         = '/Volumes/porsche';
+rootDir         = '/Volumes/diedrichsen_data$';
 
 %rsDir           = fullfile(rootDir,'/meret/MATLAB/data_rsfMRI/resting_state_for_Jorn');
+
 rsDir           = fullfile(rootDir,'/data/smarts/fmri/restingstate_imaging/');
 rssDir          = fullfile(rootDir,'/data/smarts/fmri/restingstate_imaging/preprocess/files');
 anaDir          = fullfile(rootDir,'anatomicals');
