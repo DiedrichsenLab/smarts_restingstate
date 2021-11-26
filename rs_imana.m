@@ -537,11 +537,11 @@ switch(what)
         Topo = (fullfile(atlasSurfDir,'lh.CUT.topo'));
         Shape = caret_load(fullfile(atlasSurfDir,'lh.surface_shape'));
         Paint = caret_load(fullfile(atlasSurfDir,'ROI.paint')); 
-        B = caret_load('CS.border');
+        B = caret_load(fullfile(atlasSurfDir,'CS.border'));
         N   = load(fullfile(roiDir,sprintf('%s_regions_voxelwise.mat','UZP_1005'))); % load subject region definition
         D=load(fullfile(ppDir,'rs_preprocess_voxelwise.mat'));
         figure(1); 
-        set(gcf,'PaperPosition',[2 2 12 8]); 
+        set(gcf,'PaperPosition',[2 2 20 14]); 
         subplot(3,5,1); 
         [M,d,p]=caret_plotflatmap('coord',Coord,'topo',Topo,'data',Shape.data(:,2),'xlims',[-25 18],'ylims',[-27 42]);
         set(gca,'XTick',[],'YTick',[]); 
@@ -554,6 +554,7 @@ switch(what)
         title('ROI'); 
         Data = zeros(163842,size(D.zr,1)); 
         Data(N.location,:) = D.zr'; 
+        
         
         weeks = [1,4,12,24,52]; 
         for i =1:5 
@@ -574,9 +575,64 @@ switch(what)
             set(gca,'XTick',[],'YTick',[]); 
             axis equal 
         end 
-    case 'PP_plotmap'
-        M=varargin{1};
-        Topo = varargin{2}; 
+        % Do statistics: Independent t-test controls - patients 
+        figure(2); 
+        for i =1:5 
+            subplot(3,5,5+i); 
+            if (i==1) 
+                ylabel('Difference'); 
+            end; 
+            t= rs_imana('PP_voxelwise_ttest',Data(:,D.control & D.week==weeks(i)),...
+                                Data(:,~D.control & D.week==weeks(i))); 
+            caret_plotflatmap('topo',Topo,'M',M,'data',t,'cscale',[-5 5],'border',B.Border); 
+            set(gca,'XTick',[],'YTick',[]); 
+            axis equal 
+
+            title(sprintf('Week %d', weeks(i))); 
+        end; 
+        % Do statistics: Dependent t-test patients across weeks
+        for i =1:4
+            subplot(3,5,10+i); 
+            indx=find (~D.control & (D.week==weeks(i)| D.week==weeks(i+1)));
+            A = getrow(D,indx); 
+            [a,b,c] = unique(A.subj_name);
+            Tdata = []; 
+            for j=1:max(c)
+                in = find(c==j); 
+                if(length(in)==2) 
+                    dd=A.zr(in(2),:)-A.zr(in(1),:); 
+                    Tdata(N.location,end+1)=dd';
+                end
+            end
+            m = nanmean(Tdata,2); 
+            n = sum(~isnan(Tdata),2); 
+            v = nanvar(Tdata,0,2); 
+            t= m./sqrt(v./n); 
+            crit = tinv(0.975,max(n-1));
+            t(abs(t)<crit)=0; 
+            caret_plotflatmap('topo',Topo,'M',M,'data',t,'cscale',[-5 5],'border',B.Border); 
+            set(gca,'XTick',[],'YTick',[]); 
+            axis equal       
+            title(sprintf('Week %d - %d', weeks(i+1),weeks(i))); 
+        end; 
+        
+        
+    case 'PP_voxelwise_ttest' 
+            % Do simple t-tests      
+            G1= varargin{1}; 
+            G2= varargin{2}; 
+            n1 = sum(~isnan(G1) & G1~=0,2);
+            n2 = sum(~isnan(G2) & G2~=0,2);
+            s1 = nansum(G1.^2,2); 
+            s2 = nansum(G2.^2,2); 
+            m1  = nanmean(G1,2); 
+            m2  = nanmean(G2,2);
+            df = n1+n2-2; 
+            av  = (s1+s2)./df;
+            t = (m2 - m1)./sqrt(av.*(1./n1+1./n2)); 
+            crit = tinv(0.975,max(df));
+            t(abs(t)<crit)=0; 
+            varargout={t}; 
         
     case 'PP_removePair'                      % some participants have bad correlation pairs, get rid of them
         D = varargin{1};
